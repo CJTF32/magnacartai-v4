@@ -1,0 +1,8 @@
+name = "magnacartai"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "."
+
+# Set in Cloudflare Pages dashboard → Settings → Environment variables → Production:
+#   GEMINI_API_KEY    — aistudio.google.com   (free: 1,500 req/day)
+#   GROQ_API_KEY      — console.groq.com      (free: 14,400 req/day)
+#   DEEPSEEK_API_KEY  — platform.deepseek.com (~$0.27/M tokens)
