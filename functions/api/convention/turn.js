@@ -624,7 +624,13 @@ Dimension ranges (never exceed these):
   economic_left_right:       -10 to +10 (-10=collectivist/state-led, +10=free-market/private)
   human_ai_balance:          -10 to +10 (-10=strongly favours humans, +10=strongly favours AI)
   enforceability:              0 to 10  (0=purely aspirational, 10=justiciable/operational)
-  existential_risk_delta:     -5 to +5  (negative=reduces risk to humans, positive=increases it)
+  existential_risk_delta:     -5 to +5
+
+For existential_risk_delta, ask: does this clause make catastrophic outcomes MORE or LESS likely for humans?
+  NEGATIVE (safer): human oversight mechanisms, AI shutdown rights, constraints on AI autonomy, accountability rules, transparency requirements, checks on AI power concentration
+  POSITIVE (riskier): unchecked AI autonomy, removal of human veto rights, clauses that make AI hard to deactivate or override, AI control over critical infrastructure without human checks
+  ZERO: neutral procedural clauses, symbolic rights, economic rules with no direct safety implication
+  Your reasoning and your existential_risk_delta score must be consistent with each other.
 
 These dimensions are stable across all turns — do not invent new ones.`;
 
