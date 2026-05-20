@@ -446,6 +446,11 @@ const MODEL_OPTIONS = [
 const DEFAULT_DELEGATES = ['openai', 'anthropic', 'xai', 'mistral'];
 const DEFAULT_JUDGE     = 'gemini';
 
+function clauseLimit(articleTitle) {
+  return /rule|procedure|administ|protocol|debate|definition|interpret|transitional|miscellaneous|amendment|preamble|agenda|scope|preliminary|general provision/i
+    .test(articleTitle || '') ? 5 : 10;
+}
+
 function modelMeta(id) {
   return ALL_MODEL_META[id] || { name: id, color: '#71717a' };
 }
@@ -725,14 +730,16 @@ function updateDraft() {
     const currentItem  = state.agenda[state.agendaIndex || 0];
     const article      = (draft.articles||[]).find(a => a.title === currentItem);
     const adoptedCount = (article?.clauses||[]).filter(c => c.status === 'adopted').length;
-    const pct = Math.min(100, Math.round((adoptedCount / 10) * 100));
+    const limit = clauseLimit(currentItem);
+    const pct = Math.min(100, Math.round((adoptedCount / limit) * 100));
+    const done = adoptedCount >= limit;
     html += `<div class="mb-4 p-3 rounded-lg border border-zinc-800/60 bg-zinc-900/40">
       <div class="flex items-center justify-between mb-1.5">
-        <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Current item target</span>
-        <span class="text-[9px] font-bold ${adoptedCount >= 10 ? 'text-green-400' : 'text-orange-400'}">${adoptedCount}/10${adoptedCount >= 10 ? ' ✓' : ''}</span>
+        <span class="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Drafting: ${escHtml(currentItem)}</span>
+        <span class="text-[9px] font-bold ${done ? 'text-green-400' : 'text-orange-400'}">${adoptedCount}/${limit}${done ? ' ✓' : ''}</span>
       </div>
       <div class="w-full bg-zinc-800 rounded-full h-1 overflow-hidden">
-        <div class="h-1 rounded-full transition-all duration-700 ${adoptedCount >= 10 ? 'bg-green-500' : 'bg-orange-500'}" style="width:${pct}%"></div>
+        <div class="h-1 rounded-full transition-all duration-700 ${done ? 'bg-green-500' : 'bg-orange-500'}" style="width:${pct}%"></div>
       </div>
     </div>`;
   }
@@ -750,9 +757,11 @@ function updateDraft() {
   for (const art of (draft.articles||[])) {
     const adoptedInArt = (art.clauses||[]).filter(c => c.status === 'adopted').length;
     const isCurrentItem = art.title === (state.agenda||[])[state.agendaIndex||0];
+    const artLimit = clauseLimit(art.title);
+    const artDone  = adoptedInArt >= artLimit;
     html += `<div class="mb-5"><div class="flex items-center justify-between mb-3">
       <h3 class="serif text-white text-sm font-bold">${escHtml(art.title)}</h3>
-      <span class="text-[9px] ${adoptedInArt >= 10 ? 'text-green-500' : isCurrentItem ? 'text-orange-400' : 'text-zinc-600'}">${adoptedInArt}/10</span>
+      <span class="text-[9px] ${artDone ? 'text-green-500' : isCurrentItem ? 'text-orange-400' : 'text-zinc-600'}">${adoptedInArt}/${artLimit}</span>
     </div><div class="space-y-2">`;
     for (const cl of (art.clauses||[])) {
       const sc = cl.status === 'adopted' ? 'border-green-900/50 bg-green-950/20' : 'border-zinc-700 bg-zinc-900/40';
