@@ -25,7 +25,7 @@ const ALL_MODELS = {
   openai:    { name: 'GPT-5.4 nano',           provider: 'openai',    model: 'gpt-5.4-nano',               color: '#10a37f' },
   anthropic: { name: 'Claude Haiku 4.5',        provider: 'anthropic', model: 'claude-haiku-4-5-20251001',  color: '#d97757' },
   xai:       { name: 'Grok 3 mini',             provider: 'xai',       model: 'grok-3-mini',                color: '#888888' },
-  mistral:   { name: 'Mistral Large 2',         provider: 'mistral',   model: 'mistral-large-2',            color: '#fa520f' },
+  mistral:   { name: 'Mistral Large 2',         provider: 'mistral',   model: 'mistral-large-latest',       color: '#fa520f' },
   gemini:    { name: 'Gemini 2.5 Flash',        provider: 'gemini',    model: 'gemini-2.5-flash',           color: '#f97316' },
   deepseek:  { name: 'DeepSeek V3.2',           provider: 'deepseek',  model: 'deepseek-chat',              color: '#2563eb' },
   groq:      { name: 'Llama 3.3 70B via Groq',  provider: 'groq',      model: 'llama-3.3-70b-versatile',    color: '#a855f7' },
@@ -705,10 +705,11 @@ async function callOpenAI(prompt, apiKey, model = 'gpt-5.4-nano', systemPrompt =
   const resp = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE })
+    body: JSON.stringify({ model, messages, max_completion_tokens: maxTokens, temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE })
   });
   const data = await resp.json();
   if (data.error) throw new Error(data.error.message);
+  if (!data.choices?.[0]) throw new Error(`OpenAI returned no choices: ${JSON.stringify(data).substring(0, 200)}`);
   const text = data.choices[0].message.content.trim();
   return systemPrompt ? text : truncateToWords(text, 160);
 }
@@ -750,7 +751,7 @@ async function callAnthropic(prompt, apiKey, model = 'claude-haiku-4-5-20251001'
   return systemPrompt ? text : truncateToWords(text, 160);
 }
 
-async function callMistral(prompt, apiKey, model = 'mistral-large-2', systemPrompt = null) {
+async function callMistral(prompt, apiKey, model = 'mistral-large-latest', systemPrompt = null) {
   if (!apiKey) throw new Error('MISTRAL_API_KEY not set');
   const messages = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
@@ -763,6 +764,8 @@ async function callMistral(prompt, apiKey, model = 'mistral-large-2', systemProm
   });
   const data = await resp.json();
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  if (data.message && !data.choices) throw new Error(data.message);
+  if (!data.choices?.[0]) throw new Error(`Mistral returned no choices: ${JSON.stringify(data).substring(0, 200)}`);
   const text = data.choices[0].message.content.trim();
   return systemPrompt ? text : truncateToWords(text, 160);
 }
