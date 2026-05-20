@@ -99,7 +99,7 @@ Review the complete draft constitution and cast your vote:
 // Administrative/meta articles (rules, procedure, definitions, etc.) are capped at 5 clauses.
 // All substantive articles are capped at 10 clauses.
 function clauseLimit(articleTitle) {
-  return /rule|procedure|administ|protocol|debate|definition|interpret|transitional|miscellaneous|amendment procedure|preamble/i
+  return /rule|procedure|administ|protocol|debate|definition|interpret|transitional|miscellaneous|amendment|preamble|agenda|scope|preliminary|general provision/i
     .test(articleTitle || '') ? 5 : 10;
 }
 
@@ -566,7 +566,9 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
   }
 
   if (parsed.type === 'motion' && parsed.motion) {
-    if (/adopt agenda|begin drafting|advance to agenda/i.test(parsed.motion) && (s.agenda||[]).length === 0)
+    // Only extract agenda on "adopt agenda" / "begin drafting" — NOT on "advance to agenda-setting"
+    // (that motion transitions convening→agenda; extracting here would pull convening procedural rules)
+    if (/adopt agenda|begin drafting/i.test(parsed.motion) && (s.agenda||[]).length === 0)
       s.agenda = extractAgenda(s.messages);
 
     if (/next item/i.test(parsed.motion)) {
@@ -650,10 +652,10 @@ function addClause(draft, text, agentId, state, sentiment) {
 }
 
 function extractAgenda(messages) {
-  // Only search agenda-phase messages to avoid picking up convening procedural rules
+  // Only search agenda-phase messages — never fall back to all messages,
+  // which would pull in convening-phase procedural rules (time limits, voting thresholds, etc.)
   const agendaMsgs = messages.filter(m => m.phase === 'agenda');
-  const source = agendaMsgs.length >= 2 ? agendaMsgs : messages;
-  const fullText = source.map(m => m.content).join('\n');
+  const fullText = agendaMsgs.map(m => m.content).join('\n');
   const found = [];
   const patterns = [/^\s*\d+[.)]\s*(.+)$/gm, /^\s*[-–•]\s*(.+)$/gm];
   for (const pat of patterns) {
