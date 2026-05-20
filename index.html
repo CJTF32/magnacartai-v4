@@ -547,6 +547,7 @@ function randomizeDelegates() {
   roster.delegates = ids;
   saveRoster(roster);
   renderRosterEditor();
+  updateScenarioDetail(loadScenario());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
