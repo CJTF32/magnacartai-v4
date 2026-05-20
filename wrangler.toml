@@ -8,7 +8,3 @@ pages_build_output_dir = "."
 #   XAI_API_KEY       — console.x.ai               (Grok 3 mini)
 #   MISTRAL_API_KEY   — console.mistral.ai         (Mistral Large 2)
 #   GEMINI_API_KEY    — aistudio.google.com        (Gemini 2.5 Flash — default judge)
-#
-# Optional providers (only required if selected as delegate or judge):
-#   DEEPSEEK_API_KEY  — platform.deepseek.com      (DeepSeek V3.2)
-#   GROQ_API_KEY      — console.groq.com            (Llama 3.3 70B via Groq)
