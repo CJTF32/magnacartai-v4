@@ -53,8 +53,10 @@ When ready to move on, call "MOTION: Advance to agenda-setting".`
     maxTurns: 8,
     minTurnsBeforeMotion: 2,
     instruction: (state) => `AGENDA SETTING PHASE — turn ${state.phaseTurns + 1} of ${8}.
-Decide what this constitution should cover and in what order.
-When the agenda is agreed, call "MOTION: Adopt agenda and begin drafting".
+Propose a structured agenda of 4–6 articles. The agenda MUST include:
+  • At most one procedural/administrative article (e.g. "Rules of Procedure" or "Definitions") — capped at 5 clauses.
+  • At least three substantive articles covering the core constitutional questions for this scenario — each capped at 10 clauses.
+List articles as a numbered list. When agreed, call "MOTION: Adopt agenda and begin drafting".
 Proposed items so far: ${(state.agenda||[]).join(' | ')||'none yet'}`
   },
   drafting: {
@@ -96,10 +98,11 @@ Review the complete draft constitution and cast your vote:
 };
 
 // ── CLAUSE LIMITS ────────────────────────────────────────────────────────
-// Administrative/meta articles (rules, procedure, definitions, etc.) are capped at 5 clauses.
-// All substantive articles are capped at 10 clauses.
+// Administrative/meta articles are capped at 5 clauses; substantive articles at 10.
+// Match only clearly procedural titles — avoid broad terms like "scope" or "preliminary"
+// which may appear in substantive article names.
 function clauseLimit(articleTitle) {
-  return /rule|procedure|administ|protocol|debate|definition|interpret|transitional|miscellaneous|amendment|preamble|agenda|scope|preliminary|general provision/i
+  return /\b(rules? of|rules? of procedure|procedural|administrative|amendment procedure|debate protocol|definitions?|transitional|miscellaneous|preamble)\b/i
     .test(articleTitle || '') ? 5 : 10;
 }
 
