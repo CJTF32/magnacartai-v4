@@ -32,7 +32,7 @@ At the end, a summary screen shows the headline finding, per-delegate dimension 
 
 Any of the seven available models can be assigned to any slot or the judge role via the roster editor on the landing page. Selections persist in localStorage.
 
-**All seven options:** GPT-5.4 nano, Claude Haiku 4.5, Grok 3 mini, Mistral Large 2, Gemini 2.5 Flash, DeepSeek V3.2, Llama 3.3 70B (via Groq)
+**All five options:** GPT-5.4 nano, Claude Haiku 4.5, Grok 3 mini, Mistral Large 2, Gemini 2.5 Flash
 
 ## Scenarios
 
@@ -69,13 +69,6 @@ Set these in Cloudflare Pages → Settings → Secrets (or as environment variab
 | `XAI_API_KEY` | console.x.ai |
 | `MISTRAL_API_KEY` | console.mistral.ai |
 | `GEMINI_API_KEY` | aistudio.google.com |
-
-Optional (only needed if selected):
-
-| Secret | Provider |
-|---|---|
-| `DEEPSEEK_API_KEY` | platform.deepseek.com |
-| `GROQ_API_KEY` | console.groq.com |
 
 ### Deploy
 
