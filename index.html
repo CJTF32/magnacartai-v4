@@ -788,14 +788,13 @@ function updateScoresPanel() {
 }
 
 function updateCompass() {
-  // Compass positions derived from weighted-average dimension totals (not judge gestalt)
   if (!state?.dimensionTotals) return;
   const dotsEl   = document.getElementById('compass-dots');
   const legendEl = document.getElementById('compass-legend');
   if (!dotsEl || !legendEl) return;
 
   const delegates = getDelegateMeta();
-  let hasData = false, dotsHtml = '', legendHtml = '';
+  let hasData = false, svgLines = '', dotsHtml = '', legendHtml = '';
 
   for (const d of delegates) {
     const dt = state.dimensionTotals[d.id];
@@ -804,34 +803,54 @@ function updateCompass() {
     const yDt = dt.authoritarian_libertarian;
     if (!xDt || xDt.weightSum === 0) continue;
     hasData = true;
-    const x = Math.max(-10, Math.min(10, xDt.sum / xDt.weightSum));
-    const y = yDt && yDt.weightSum > 0 ? Math.max(-10, Math.min(10, yDt.sum / yDt.weightSum)) : 0;
+
+    const x     = Math.max(-10, Math.min(10, xDt.sum / xDt.weightSum));
+    const y     = yDt?.weightSum > 0 ? Math.max(-10, Math.min(10, yDt.sum / yDt.weightSum)) : 0;
     const trail = state.sentimentHistory?.[d.id] || [];
+
+    // SVG polyline connecting all trail points
+    if (trail.length >= 2) {
+      const pts = trail.map(pt => {
+        const px = ((pt.x + 10) / 20 * 100).toFixed(2);
+        const py = (((10 - pt.y) / 20) * 100).toFixed(2);
+        return `${px},${py}`;
+      }).join(' ');
+      svgLines += `<polyline points="${pts}" stroke="${d.color}" stroke-width="0.9" fill="none" opacity="0.35" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+
+    // Fading trail dots
     trail.slice(0, -1).forEach((pt, i) => {
-      const age = trail.length - 1 - i;
-      const opacity = Math.max(0.08, 0.4 - age * 0.06).toFixed(2);
-      const size = Math.max(4, 10 - age);
+      const age     = trail.length - 1 - i;
+      const opacity = Math.max(0.06, 0.35 - age * 0.04).toFixed(2);
+      const size    = Math.max(3, 8 - Math.min(age, 5));
       const px = ((pt.x + 10) / 20 * 100).toFixed(1);
       const py = (((10 - pt.y) / 20) * 100).toFixed(1);
       dotsHtml += `<div style="position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${d.color};opacity:${opacity};left:calc(${px}% - ${size/2}px);top:calc(${py}% - ${size/2}px);pointer-events:none;"></div>`;
     });
+
+    // Current position dot
     const px = ((x + 10) / 20 * 100).toFixed(1);
     const py = (((10 - y) / 20) * 100).toFixed(1);
-    dotsHtml += `<div style="position:absolute;width:12px;height:12px;border-radius:50%;background:${d.color};border:2px solid #09090b;box-shadow:0 0 8px ${d.color}88;left:calc(${px}% - 6px);top:calc(${py}% - 6px);transition:left 1.2s,top 1.2s;z-index:10;" title="${d.name}: x=${x.toFixed(1)}, y=${y.toFixed(1)}"></div>`;
-    const q = getQuadrant(x, y);
-    const haDt = dt.human_ai_balance;
-    const ha = haDt && haDt.weightSum > 0 ? (haDt.sum / haDt.weightSum).toFixed(1) : '—';
+    dotsHtml += `<div style="position:absolute;width:12px;height:12px;border-radius:50%;background:${d.color};border:2px solid #09090b;box-shadow:0 0 8px ${d.color}88;left:calc(${px}% - 6px);top:calc(${py}% - 6px);transition:left 1.2s,top 1.2s;z-index:10;" title="${d.name}: econ=${x.toFixed(1)}, auth/lib=${y.toFixed(1)}"></div>`;
+
+    // Legend entry — H/AI from humanDominance
+    const hd      = state.humanDominance?.[d.id];
+    const hdScore = hd?.count > 0 ? Math.round((hd.sum / hd.count) * 10) : null;
+    const hdStr   = hdScore !== null ? (hdScore > 0 ? `+${hdScore}` : `${hdScore}`) : '—';
+    const q       = getQuadrant(x, y);
     legendHtml += `<div class="bg-zinc-900/50 px-2 py-1.5 rounded border border-zinc-800/50">
       <div class="flex items-center gap-2">
         <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${d.color}"></div>
         <span class="text-[10px] font-semibold" style="color:${d.color}">${d.name}</span>
         <span class="text-[9px] text-zinc-600 ml-1">${q}</span>
-        <span class="text-[9px] text-zinc-700 ml-auto">H/AI ${ha}</span>
+        <span class="text-[9px] text-zinc-700 ml-auto">H/AI ${hdStr}</span>
       </div>
     </div>`;
   }
+
   if (hasData) {
-    dotsEl.innerHTML = dotsHtml;
+    const svg = `<svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;" viewBox="0 0 100 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${svgLines}</svg>`;
+    dotsEl.innerHTML = svg + dotsHtml;
     legendEl.innerHTML = legendHtml;
   }
 }
@@ -888,9 +907,18 @@ function updateRiskPanel() {
   }
 
   if (badge) {
-    badge.textContent = overallScore !== null
-      ? (overallScore > 0 ? `+${overallScore} human-leaning` : overallScore < 0 ? `${overallScore} AI-leaning` : 'Balanced')
-      : 'Awaiting contributions…';
+    const last = riskHistory.length ? riskHistory[riskHistory.length - 1] : null;
+    if (last) {
+      const lastDelegate = delegates.find(d => d.id === last.attributed_to);
+      const lastName = lastDelegate ? lastDelegate.name : (last.attributed_to || 'Unknown');
+      const delta = last.delta ?? last.score ?? 0;
+      const sign = delta > 0 ? '+' : '';
+      const lean = delta > 0 ? 'human' : delta < 0 ? 'AI' : 'neutral';
+      const src  = last.source === 'clause' ? 'clause' : 'speech';
+      badge.textContent = `Last: ${lastName} ${sign}${delta.toFixed(1)} ${lean} (${src})`;
+    } else {
+      badge.textContent = 'Awaiting contributions…';
+    }
   }
 
   // Per-delegate center-anchored bars
