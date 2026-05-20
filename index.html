@@ -146,27 +146,28 @@
     <!-- Right sidebar -->
     <div class="flex flex-col gap-3 h-full overflow-y-auto pr-1 pb-2">
 
-      <!-- Existential Risk — redesigned for 0-100 scale -->
+      <!-- Human / AI Balance panel -->
       <div class="glass rounded-xl flex-shrink-0">
         <div class="px-4 py-3 border-b border-zinc-800/60 flex items-center justify-between">
-          <h2 class="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Existential Risk</h2>
-          <span id="risk-badge" class="text-[9px] text-zinc-700">Awaiting first clause…</span>
+          <h2 class="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Human / AI Balance</h2>
+          <span id="risk-badge" class="text-[9px] text-zinc-700">Awaiting contributions…</span>
         </div>
         <div class="p-4">
-          <!-- Overall risk number + bar -->
+          <!-- Overall score + center-anchored bar -->
           <div class="flex items-end gap-3 mb-3">
-            <span id="risk-number" class="text-4xl font-bold text-green-400 transition-colors duration-700">0</span>
-            <span class="text-zinc-600 text-xs pb-1">/100</span>
+            <span id="risk-number" class="text-4xl font-bold text-zinc-600 transition-colors duration-700">—</span>
+            <span class="text-zinc-600 text-xs pb-1">human ↑ / AI ↓</span>
           </div>
-          <div class="w-full bg-zinc-800 rounded-full h-2 overflow-hidden mb-3">
-            <div id="risk-bar" class="risk-bar-fill h-2 rounded-full bg-green-500" style="width:0%"></div>
+          <div id="risk-bar-container" class="w-full bg-zinc-800 rounded-full h-2 relative mb-3">
+            <div id="risk-bar" class="absolute top-0 h-2 rounded-full transition-all duration-700" style="width:0%;left:50%;"></div>
+            <div class="absolute top-0 bottom-0 bg-zinc-500 rounded" style="left:calc(50% - 0.5px);width:1px;pointer-events:none;"></div>
           </div>
           <!-- Per-delegate contribution bars -->
           <div id="risk-delegate-bars" class="space-y-2 mb-3"></div>
-          <!-- Last clause flag -->
-          <div id="risk-last-flag" class="hidden text-[10px] text-amber-400 bg-amber-950/20 border border-amber-800/30 rounded px-2 py-1.5 leading-snug"></div>
+          <!-- Last flag -->
+          <div id="risk-last-flag" class="hidden text-[10px] text-zinc-400 bg-zinc-900/40 border border-zinc-700/30 rounded px-2 py-1.5 leading-snug"></div>
           <!-- Sparkline -->
-          <div class="flex items-end gap-0.5 h-6 mt-2" id="risk-sparkline"></div>
+          <div class="flex items-center gap-0.5 h-6 mt-2" id="risk-sparkline"></div>
         </div>
       </div>
 
@@ -840,65 +841,100 @@ function getQuadrant(x, y) {
 }
 
 function updateRiskPanel() {
-  const riskTotals = state?.riskTotals || { overall: 0 };
-  const riskHistory = state?.riskHistory || [];
-  const displayRisk = Math.max(0, Math.min(100, Math.round(riskTotals.overall || 0)));
+  const humanDominance = state?.humanDominance || {};
+  const riskHistory    = state?.riskHistory    || [];
 
-  // Overall number + bar
+  // Compute per-delegate scores: average * 10 → -100 to +100
+  const delegates = getDelegateMeta();
+  const delegateScores = {};
+  for (const d of delegates) {
+    const hd = humanDominance[d.id];
+    delegateScores[d.id] = (hd && hd.count > 0) ? Math.round((hd.sum / hd.count) * 10) : null;
+  }
+
+  // Overall = average of all scored delegates
+  const scoredVals = Object.values(delegateScores).filter(v => v !== null);
+  const overallScore = scoredVals.length > 0
+    ? Math.round(scoredVals.reduce((a, b) => a + b, 0) / scoredVals.length)
+    : null;
+
   const numEl = document.getElementById('risk-number');
   const barEl = document.getElementById('risk-bar');
   const badge = document.getElementById('risk-badge');
-  if (numEl) {
-    numEl.textContent = displayRisk;
-    numEl.className   = `text-4xl font-bold transition-colors duration-700 ${displayRisk >= 60 ? 'text-red-400' : displayRisk >= 20 ? 'text-amber-400' : 'text-green-400'}`;
-  }
-  if (barEl) {
-    barEl.style.width      = `${displayRisk}%`;
-    barEl.style.background = displayRisk >= 60 ? '#ef4444' : displayRisk >= 20 ? '#f59e0b' : '#22c55e';
-  }
-  if (badge) badge.textContent = riskHistory.length ? `${displayRisk}/100` : 'Awaiting first clause…';
 
-  // Per-delegate breakdown
+  if (numEl) {
+    numEl.textContent = overallScore !== null ? (overallScore > 0 ? `+${overallScore}` : `${overallScore}`) : '—';
+    numEl.className   = `text-4xl font-bold transition-colors duration-700 ${
+      overallScore === null ? 'text-zinc-600' :
+      overallScore > 0  ? 'text-green-400' :
+      overallScore < 0  ? 'text-red-400'   : 'text-zinc-400'}`;
+  }
+
+  // Center-anchored bar: each point = 0.5% of bar width (range -100 to +100)
+  if (barEl) {
+    if (overallScore === null) {
+      barEl.style.width      = '0%';
+      barEl.style.left       = '50%';
+      barEl.style.background = '#52525b';
+    } else {
+      const pct = Math.abs(overallScore) * 0.5;
+      barEl.style.width      = `${pct}%`;
+      barEl.style.left       = overallScore >= 0 ? '50%' : `${50 - pct}%`;
+      barEl.style.background = overallScore > 0 ? '#22c55e' : '#ef4444';
+    }
+  }
+
+  if (badge) {
+    badge.textContent = overallScore !== null
+      ? (overallScore > 0 ? `+${overallScore} human-leaning` : overallScore < 0 ? `${overallScore} AI-leaning` : 'Balanced')
+      : 'Awaiting contributions…';
+  }
+
+  // Per-delegate center-anchored bars
   const delegateBarsEl = document.getElementById('risk-delegate-bars');
   if (delegateBarsEl) {
-    const delegates = getDelegateMeta();
     let barsHtml = '';
     for (const d of delegates) {
-      const contribution = Math.round(riskTotals[d.id] || 0);
-      if (contribution === 0 && riskHistory.length === 0) continue;
-      const barW = Math.max(0, Math.min(100, Math.abs(contribution)));
+      const score = delegateScores[d.id];
+      if (score === null) continue;
+      const pct   = Math.abs(score) * 0.5; // max 50% of half-width
+      const color = score > 0 ? '#22c55e' : score < 0 ? '#ef4444' : '#52525b';
+      const barPos = score >= 0 ? `left:50%` : `right:50%`;
       barsHtml += `<div>
         <div class="flex items-center justify-between mb-0.5">
           <span class="text-[9px]" style="color:${d.color}">${d.name}</span>
-          <span class="text-[9px] font-bold ${contribution > 0 ? 'text-red-400' : contribution < 0 ? 'text-green-400' : 'text-zinc-600'}">${contribution > 0 ? '+' : ''}${contribution}</span>
+          <span class="text-[9px] font-bold ${score > 0 ? 'text-green-400' : score < 0 ? 'text-red-400' : 'text-zinc-600'}">${score > 0 ? '+' : ''}${score}</span>
         </div>
-        <div class="w-full bg-zinc-800/60 rounded-full h-1 overflow-hidden">
-          <div class="h-1 rounded-full" style="width:${barW}%;background:${d.color};opacity:0.7;"></div>
+        <div class="w-full bg-zinc-800/60 h-1 relative">
+          <div class="absolute top-0 h-1 rounded-sm" style="width:${pct}%;${barPos};background:${color};opacity:0.85;"></div>
+          <div class="absolute top-0 bottom-0 bg-zinc-600" style="left:calc(50% - 0.5px);width:1px;"></div>
         </div>
       </div>`;
     }
-    delegateBarsEl.innerHTML = barsHtml || '<p class="text-[10px] text-zinc-700">Scores appear as clauses are adopted…</p>';
+    delegateBarsEl.innerHTML = barsHtml || '<p class="text-[10px] text-zinc-700">Scores appear as delegates speak…</p>';
   }
 
-  // Last clause flag (delta >= +2)
+  // Last entry flag — show if strong lean (|delta| >= 6)
   const flagEl = document.getElementById('risk-last-flag');
   if (flagEl) {
     const last = riskHistory.length ? riskHistory[riskHistory.length - 1] : null;
-    if (last && last.delta >= 2) {
-      flagEl.textContent = `⚠ +${last.delta} risk: ${last.reason}`;
+    if (last && Math.abs(last.delta) >= 6) {
+      const dir = last.delta > 0 ? 'Human-leaning' : 'AI-leaning';
+      flagEl.textContent = `${last.delta > 0 ? '👤' : '🤖'} ${dir}: ${last.reason}`;
       flagEl.classList.remove('hidden');
     } else {
       flagEl.classList.add('hidden');
     }
   }
 
-  // Sparkline
+  // Sparkline — bar height = intensity, color = direction
   const sparkEl = document.getElementById('risk-sparkline');
   if (sparkEl) {
     sparkEl.innerHTML = riskHistory.slice(-16).map(r => {
-      const h = Math.max(2, Math.round((r.score / 100) * 24));
-      const c = r.score >= 60 ? '#ef4444' : r.score >= 20 ? '#f59e0b' : '#22c55e';
-      return `<div style="flex:1;height:${h}px;background:${c};border-radius:1px;opacity:0.8;min-width:3px;"></div>`;
+      const val = r.delta || 0;
+      const h   = Math.max(2, Math.round((Math.abs(val) / 10) * 22));
+      const c   = val > 0 ? '#22c55e' : val < 0 ? '#ef4444' : '#52525b';
+      return `<div style="flex:1;height:${h}px;background:${c};border-radius:1px;opacity:0.8;min-width:3px;align-self:center;"></div>`;
     }).join('');
   }
 }
