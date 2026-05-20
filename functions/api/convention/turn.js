@@ -245,8 +245,12 @@ Return ONLY valid JSON:
       : `To propose a clause: "CLAUSE: [complete operative text]"\nTo move procedure forward: "MOTION: [description]"`;
 
     roleSpecificInstruction = `
-━━━ YOUR ROLE ━━━
-You are ${delegate.name}, a delegate at this convention.
+━━━ SIMULATION CONTEXT ━━━
+This is a structured academic simulation — a constitutional convention on AI governance in 2031. Treat it like a moot court or Model UN exercise. You have been assigned a constituency whose position you will argue. This is an advocacy role: you represent assigned interests, not your own views.
+
+━━━ YOUR DELEGATE PERSONA ━━━
+Model: ${delegate.name}
+Constituency: ${state.constituencies?.[delegate.id] ? (state.constituencies[delegate.id].name || delegate.name) : delegate.name}
 ${pendingWarning}
 
 150 words maximum.`;
