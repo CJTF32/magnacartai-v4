@@ -66,9 +66,9 @@ export async function onRequestPost(context) {
     agenda: [],
     agendaIndex: 0,
     scores,
-    riskTotals: { overall: 0 },       // cumulative existential_risk_delta per clause
-    dimensionTotals: {},               // { [delegateId]: { [dim]: { sum, weightSum } } }
-    sentiments: {},                    // kept for backward compat; now derived from dimensionTotals
+    humanDominance: {},                // { [delegateId]: { sum, count } } — positive=human, negative=AI
+    dimensionTotals: {},               // { [delegateId]: { [dim]: { sum, weightSum } } } — compass only
+    sentiments: {},                    // derived from dimensionTotals for compass display
     sentimentHistory: {},
     riskHistory: [],
     ratificationVotes: {},
