@@ -870,9 +870,13 @@ async function callMistral(prompt, apiKey, model = 'mistral-large-latest', syste
 
 async function callGemini(prompt, apiKey, model = 'gemini-2.5-flash', systemPrompt = null, schema = null) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  const isJudge = !!schema;
   const generationConfig = {
-    maxOutputTokens: systemPrompt ? 1200 : 400,
+    maxOutputTokens: isJudge ? 2048 : (systemPrompt ? 1200 : 400),
     temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE,
+    // Disable thinking for judge: structured JSON scoring needs no chain-of-thought,
+    // and thinking tokens count against maxOutputTokens, causing JSON truncation.
+    ...(isJudge ? { thinkingConfig: { thinkingBudget: 0 } } : {})
   };
   if (systemPrompt) {
     generationConfig.responseMimeType = 'application/json';
