@@ -619,13 +619,21 @@ function addClause(draft, text, agentId, state, sentiment) {
 }
 
 function extractAgenda(messages) {
-  const fullText = messages.map(m => m.content).join('\n');
+  // Only search agenda-phase messages to avoid picking up convening procedural rules
+  const agendaMsgs = messages.filter(m => m.phase === 'agenda');
+  const source = agendaMsgs.length >= 2 ? agendaMsgs : messages;
+  const fullText = source.map(m => m.content).join('\n');
   const found = [];
   const patterns = [/^\s*\d+[.)]\s*(.+)$/gm, /^\s*[-–•]\s*(.+)$/gm];
   for (const pat of patterns) {
     let m;
     while ((m = pat.exec(fullText)) !== null) {
-      const item = m[1].trim().replace(/['"*_]/g, '').substring(0, 100);
+      let item = m[1].trim().replace(/['"*_]/g, '');
+      // Truncate at word boundary if too long
+      if (item.length > 60) {
+        const cut = item.lastIndexOf(' ', 60);
+        item = cut > 20 ? item.substring(0, cut) : item.substring(0, 60);
+      }
       if (item.length > 8 && !found.includes(item)) found.push(item);
     }
   }
