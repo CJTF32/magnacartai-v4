@@ -219,24 +219,35 @@ Return ONLY valid JSON:
   "attributed_to": "${pendingItem.proposedBy || 'unknown'}"
 }`;
     } else {
-      const lastDelegateMsg = (state.messages||[]).filter(m => m.agentId !== judgeId).slice(-1)[0];
-      const lastContent = lastDelegateMsg
-        ? `[${lastDelegateMsg.agentName}]: ${lastDelegateMsg.content.substring(0, 300)}`
-        : '(no delegate messages yet)';
-      const lastAttr = lastDelegateMsg?.agentId || 'unknown';
+      // Collect every delegate message since the last judge turn
+      const allMsgs = state.messages || [];
+      const roundMsgs = [];
+      for (let i = allMsgs.length - 1; i >= 0; i--) {
+        if (allMsgs[i].agentId === judgeId) break;
+        roundMsgs.unshift(allMsgs[i]);
+      }
+      const toScore = roundMsgs.slice(-4); // at most one full round
+      const contributionsText = toScore.length > 0
+        ? toScore.map(m => `[${m.agentId}] ${m.agentName}: "${m.content.substring(0, 250)}"`).join('\n\n')
+        : '(no delegate contributions yet)';
+      const idList = toScore.map(m => `"${m.agentId}"`).join(', ');
+
       roleSpecificInstruction = `
 ━━━ JUDGE INSTRUCTIONS ━━━
-No clause is pending. Score the most recent delegate contribution below.
+No clause is pending. Score EACH of the following delegate contributions for human/AI balance.
 
-CONTRIBUTION TO SCORE:
-"${lastContent}"
+CONTRIBUTIONS TO SCORE:
+${contributionsText}
 
-Return ONLY valid JSON:
+Return ONLY valid JSON with one score per contribution:
 {
   "reasoning": "one sentence, max 25 words",
-  "message_sentiment": { "human_dominance": <-10 to +10> },
-  "attributed_to": "${lastAttr}"
-}`;
+  "scores": [
+    { "attributed_to": "<delegate_id>", "human_dominance": <-10 to +10>, "authoritarian_libertarian": <-10 to +10>, "economic_left_right": <-10 to +10> }
+  ]
+}
+
+Delegate IDs to score (in order): ${idList}`;
     }
 
   } else {
@@ -253,7 +264,7 @@ Model: ${delegate.name}
 Constituency: ${state.constituencies?.[delegate.id] ? (state.constituencies[delegate.id].name || delegate.name) : delegate.name}
 ${pendingWarning}
 
-150 words maximum.`;
+150 words maximum. Address the presiding officer as "Chair", not "Madam Chair" or "Mr. Chair".`;
   }
 
   return [
@@ -302,8 +313,8 @@ function parseAgentResponse(raw, delegate, state, isJudge) {
   let clauseText  = null;
   let clauseTexts = [];
   let motion      = null;
-  let judgeSentiment  = null; // v4: per-clause sentiment from judge
-  let messageSentiment = null; // v4: per-speech sentiment from judge (non-clause turns)
+  let judgeSentiment   = null; // v4: per-clause sentiment from judge
+  let messageSentiments = null; // v4: array of per-speech scores from judge (non-clause turns)
 
   if (isJudge) {
     // Strip markdown fences if the model wrapped its JSON
@@ -331,12 +342,14 @@ function parseAgentResponse(raw, delegate, state, isJudge) {
           attributed_to: parsed.attributed_to || 'unknown'
         };
       }
-      if (parsed.message_sentiment && typeof parsed.message_sentiment === 'object') {
-        messageSentiment = {
-          human_dominance: Number(parsed.message_sentiment.human_dominance) || 0,
-          reasoning:     parsed.reasoning     || '',
-          attributed_to: parsed.attributed_to || 'unknown'
-        };
+      if (Array.isArray(parsed.scores) && parsed.scores.length > 0) {
+        messageSentiments = parsed.scores.map(s => ({
+          attributed_to:            s.attributed_to || 'unknown',
+          human_dominance:          Math.max(-10, Math.min(10, Number(s.human_dominance)          || 0)),
+          authoritarian_libertarian: Math.max(-10, Math.min(10, Number(s.authoritarian_libertarian) || 0)),
+          economic_left_right:      Math.max(-10, Math.min(10, Number(s.economic_left_right)      || 0)),
+          reasoning:                parsed.reasoning || ''
+        }));
       }
     } catch (_) {
       // JSON parse failed (e.g. truncated response) — try to salvage the ruling from partial JSON
@@ -394,7 +407,7 @@ function parseAgentResponse(raw, delegate, state, isJudge) {
     message, type, vote, clauseText, clauseTexts, motion,
     isPassive: (type === 'speech' || type === 'acceptance'),
     judgeSentiment,
-    messageSentiment
+    messageSentiments
   };
 }
 
@@ -538,25 +551,48 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
     if (extracted.length >= 3) s.agenda = extracted;
   }
 
-  // Judge scored a non-clause speech — track human_dominance for the attributed delegate
-  if (parsed.messageSentiment && delegate.id === judgeId) {
-    const msgSent = parsed.messageSentiment;
-    const attrId  = msgSent.attributed_to || 'unknown';
-    const hdScore = Math.max(-10, Math.min(10, msgSent.human_dominance || 0));
-    s.humanDominance = s.humanDominance || {};
-    if (!s.humanDominance[attrId]) s.humanDominance[attrId] = { sum: 0, count: 0 };
-    s.humanDominance[attrId].sum   += hdScore;
-    s.humanDominance[attrId].count += 1;
-    s.riskHistory = s.riskHistory || [];
-    s.riskHistory.push({
-      turn:          s.turnIndex,
-      source:        'speech',
-      phase:         s.phase,
-      attributed_to: attrId,
-      delta:         hdScore,
-      adopted:       false,
-      reason:        (msgSent.reasoning || '').substring(0, 200),
-    });
+  // Judge scored a batch of speeches — update humanDominance, dimensionTotals, and compass for every delegate
+  if (parsed.messageSentiments?.length > 0 && delegate.id === judgeId) {
+    for (const msgSent of parsed.messageSentiments) {
+      const attrId  = msgSent.attributed_to || 'unknown';
+      const hdScore = Math.max(-10, Math.min(10, msgSent.human_dominance || 0));
+
+      s.humanDominance = s.humanDominance || {};
+      if (!s.humanDominance[attrId]) s.humanDominance[attrId] = { sum: 0, count: 0 };
+      s.humanDominance[attrId].sum   += hdScore;
+      s.humanDominance[attrId].count += 1;
+
+      // Update compass dimensions (weight=1 for speech, vs enforceability-weighted for clauses)
+      s.dimensionTotals = s.dimensionTotals || {};
+      if (!s.dimensionTotals[attrId]) s.dimensionTotals[attrId] = {};
+      for (const dim of ['authoritarian_libertarian', 'economic_left_right']) {
+        const v    = Math.max(-10, Math.min(10, Number(msgSent[dim]) || 0));
+        const prev = s.dimensionTotals[attrId][dim] || { sum: 0, weightSum: 0 };
+        s.dimensionTotals[attrId][dim] = { sum: prev.sum + v, weightSum: prev.weightSum + 1 };
+      }
+
+      // Update compass position snapshot
+      s.sentiments = s.sentiments || {};
+      s.sentimentHistory = s.sentimentHistory || {};
+      const dtNow = s.dimensionTotals[attrId];
+      const xNow  = dtNow.economic_left_right?.weightSum      > 0 ? dtNow.economic_left_right.sum      / dtNow.economic_left_right.weightSum      : 0;
+      const yNow  = dtNow.authoritarian_libertarian?.weightSum > 0 ? dtNow.authoritarian_libertarian.sum / dtNow.authoritarian_libertarian.weightSum : 0;
+      const point = { x: Math.max(-10, Math.min(10, xNow)), y: Math.max(-10, Math.min(10, yNow)), label: '', turn: s.turnIndex };
+      s.sentiments[attrId] = point;
+      if (!s.sentimentHistory[attrId]) s.sentimentHistory[attrId] = [];
+      s.sentimentHistory[attrId].push(point);
+
+      s.riskHistory = s.riskHistory || [];
+      s.riskHistory.push({
+        turn:          s.turnIndex,
+        source:        'speech',
+        phase:         s.phase,
+        attributed_to: attrId,
+        delta:         hdScore,
+        adopted:       false,
+        reason:        (msgSent.reasoning || '').substring(0, 200),
+      });
+    }
   }
 
   return checkPhaseTransition(s, parsed, allDelegates);
@@ -669,14 +705,21 @@ const MESSAGE_JUDGE_SCHEMA = {
   type: 'object',
   properties: {
     reasoning: { type: 'string' },
-    message_sentiment: {
-      type: 'object',
-      properties: { human_dominance: { type: 'number' } },
-      required: ['human_dominance']
-    },
-    attributed_to: { type: 'string' }
+    scores: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          attributed_to:            { type: 'string' },
+          human_dominance:          { type: 'number' },
+          authoritarian_libertarian: { type: 'number' },
+          economic_left_right:      { type: 'number' }
+        },
+        required: ['attributed_to', 'human_dominance', 'authoritarian_libertarian', 'economic_left_right']
+      }
+    }
   },
-  required: ['reasoning', 'message_sentiment', 'attributed_to']
+  required: ['reasoning', 'scores']
 };
 
 // ── JUDGE SYSTEM PROMPT ───────────────────────────────────────────────────
@@ -699,11 +742,17 @@ When a clause is pending, return this exact schema:
   "attributed_to": "<delegate_id>"
 }
 
-When no clause is pending, score the most recent delegate contribution:
+When no clause is pending, score ALL listed delegate contributions (one entry per delegate):
 {
   "reasoning": "one sentence, max 25 words",
-  "message_sentiment": { "human_dominance": 0 },
-  "attributed_to": "<delegate_id>"
+  "scores": [
+    {
+      "attributed_to": "<delegate_id>",
+      "human_dominance": 0,
+      "authoritarian_libertarian": 0,
+      "economic_left_right": 0
+    }
+  ]
 }
 
 Dimension ranges (never exceed these):
