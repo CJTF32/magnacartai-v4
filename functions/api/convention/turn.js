@@ -457,17 +457,6 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
           };
         }
 
-        // History entry for sparkline (delta = -10 to +10 human_dominance)
-        s.riskHistory = s.riskHistory || [];
-        s.riskHistory.push({
-          turn:          s.turnIndex,
-          delta:         hdScore,
-          reason:        (sent.reasoning || '').substring(0, 200),
-          phase:         s.phase,
-          attributed_to: proposedBy,
-          adopted
-        });
-
         // Update compass sentiments from dimension totals (x=economic, y=auth_lib)
         s.sentiments = s.sentiments || {};
         s.sentimentHistory = s.sentimentHistory || {};
@@ -479,13 +468,28 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
           const point = { x: Math.max(-10, Math.min(10, x)), y: Math.max(-10, Math.min(10, y)), label: '', turn: s.turnIndex };
           s.sentiments[did] = point;
           if (!s.sentimentHistory[did]) s.sentimentHistory[did] = [];
-          const prev = s.sentimentHistory[did];
-          const last = prev[prev.length - 1];
-          if (!last || Math.abs(last.x - point.x) > 0.5 || Math.abs(last.y - point.y) > 0.5) {
-            prev.push(point);
-            if (prev.length > 8) prev.shift();
-          }
+          s.sentimentHistory[did].push(point); // full history — no cap
         }
+
+        // History entry for CSV and sparkline — include per-entry dimensions and current compass position
+        const dtNow  = s.dimensionTotals[proposedBy] || {};
+        const xNow   = dtNow.economic_left_right?.weightSum       > 0 ? dtNow.economic_left_right.sum / dtNow.economic_left_right.weightSum : null;
+        const yNow   = dtNow.authoritarian_libertarian?.weightSum > 0 ? dtNow.authoritarian_libertarian.sum / dtNow.authoritarian_libertarian.weightSum : null;
+        s.riskHistory = s.riskHistory || [];
+        s.riskHistory.push({
+          turn:                     s.turnIndex,
+          source:                   'clause',
+          phase:                    s.phase,
+          attributed_to:            proposedBy,
+          delta:                    hdScore,
+          adopted,
+          authoritarian_libertarian: Number(sent.authoritarian_libertarian) || 0,
+          economic_left_right:       Number(sent.economic_left_right)       || 0,
+          enforceability:            Number(sent.enforceability)            || 0,
+          compass_x:                 xNow !== null ? Math.round(xNow * 10) / 10 : null,
+          compass_y:                 yNow !== null ? Math.round(yNow * 10) / 10 : null,
+          reason:                   (sent.reasoning || '').substring(0, 200),
+        });
       }
     }
 
@@ -542,11 +546,12 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
     s.riskHistory = s.riskHistory || [];
     s.riskHistory.push({
       turn:          s.turnIndex,
-      delta:         hdScore,
-      reason:        (msgSent.reasoning || '').substring(0, 200),
+      source:        'speech',
       phase:         s.phase,
       attributed_to: attrId,
-      adopted:       false
+      delta:         hdScore,
+      adopted:       false,
+      reason:        (msgSent.reasoning || '').substring(0, 200),
     });
   }
 
