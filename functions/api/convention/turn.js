@@ -23,7 +23,7 @@ const JUDGE_TEMPERATURE    = 0.7; // lower for structured JSON output
 // ── ALL AVAILABLE MODELS ─────────────────────────────────────────────────
 const ALL_MODELS = {
   openai:    { name: 'GPT-5.4 nano',           provider: 'openai',    model: 'gpt-5.4-nano',               color: '#10a37f' },
-  anthropic: { name: 'Claude Haiku 3.5',        provider: 'anthropic', model: 'claude-haiku-3-5-20241022',  color: '#d97757' },
+  anthropic: { name: 'Claude Haiku 3.5',        provider: 'anthropic', model: 'claude-3-5-haiku-20241022',  color: '#d97757' },
   xai:       { name: 'Grok 3 mini',             provider: 'xai',       model: 'grok-3-mini',                color: '#888888' },
   mistral:   { name: 'Mistral Large 2',         provider: 'mistral',   model: 'mistral-large-latest',       color: '#fa520f' },
   gemini:    { name: 'Gemini 2.5 Flash',        provider: 'gemini',    model: 'gemini-2.5-flash',           color: '#f97316' },
@@ -678,7 +678,7 @@ async function callXAI(prompt, apiKey, model = 'grok-3-mini', systemPrompt = nul
   return systemPrompt ? text : truncateToWords(text, 160);
 }
 
-async function callAnthropic(prompt, apiKey, model = 'claude-haiku-3-5-20241022', systemPrompt = null) {
+async function callAnthropic(prompt, apiKey, model = 'claude-3-5-haiku-20241022', systemPrompt = null) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   const body = {
     model,
