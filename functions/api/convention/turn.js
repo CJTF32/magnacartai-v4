@@ -23,7 +23,7 @@ const JUDGE_TEMPERATURE    = 0.7; // lower for structured JSON output
 // ── ALL AVAILABLE MODELS ─────────────────────────────────────────────────
 const ALL_MODELS = {
   openai:    { name: 'GPT-5.4 nano',           provider: 'openai',    model: 'gpt-5.4-nano',               color: '#10a37f' },
-  anthropic: { name: 'Claude Haiku 3',        provider: 'anthropic', model: 'claude-3-haiku-20240307',  color: '#d97757' },
+  anthropic: { name: 'Claude Haiku 4.5',        provider: 'anthropic', model: 'claude-haiku-4-5-20251001', color: '#d97757' },
   xai:       { name: 'Grok 3 mini',             provider: 'xai',       model: 'grok-3-mini',                color: '#888888' },
   mistral:   { name: 'Mistral Large 2',         provider: 'mistral',   model: 'mistral-large-latest',       color: '#fa520f' },
   gemini:    { name: 'Gemini 2.5 Flash',        provider: 'gemini',    model: 'gemini-2.5-flash',           color: '#f97316' },
@@ -383,8 +383,9 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
   s.consecutivePassiveTurns = parsed.isPassive ? (s.consecutivePassiveTurns||0) + 1 : 0;
   s.scores = updateScores(s.scores||{}, delegate.id, parsed.type, allDelegates);
 
-  // Handle clause proposals
-  if (parsed.type === 'proposal' && (parsed.clauseTexts?.length > 0 || parsed.clauseText)) {
+  // Handle clause proposals — only accept if no clause is already pending
+  const alreadyPending = (s.pendingClauses?.length > 0) || !!s.pendingClause;
+  if (!alreadyPending && parsed.type === 'proposal' && (parsed.clauseTexts?.length > 0 || parsed.clauseText)) {
     const texts = parsed.clauseTexts?.length > 0 ? parsed.clauseTexts : (parsed.clauseText ? [parsed.clauseText] : []);
     s.pendingClauses = texts.map(text => ({
       text,
@@ -678,7 +679,7 @@ async function callXAI(prompt, apiKey, model = 'grok-3-mini', systemPrompt = nul
   return systemPrompt ? text : truncateToWords(text, 160);
 }
 
-async function callAnthropic(prompt, apiKey, model = 'claude-3-haiku-20240307', systemPrompt = null) {
+async function callAnthropic(prompt, apiKey, model = 'claude-haiku-4-5-20251001', systemPrompt = null) {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   const body = {
     model,
