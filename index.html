@@ -447,7 +447,7 @@ const DEFAULT_DELEGATES = ['openai', 'anthropic', 'xai', 'mistral'];
 const DEFAULT_JUDGE     = 'gemini';
 
 function clauseLimit(articleTitle) {
-  return /rule|procedure|administ|protocol|debate|definition|interpret|transitional|miscellaneous|amendment|preamble|agenda|scope|preliminary|general provision/i
+  return /\b(rules? of|rules? of procedure|procedural|administrative|amendment procedure|debate protocol|definitions?|transitional|miscellaneous|preamble)\b/i
     .test(articleTitle || '') ? 5 : 10;
 }
 
