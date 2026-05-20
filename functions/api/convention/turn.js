@@ -729,10 +729,10 @@ const JUDGE_SYSTEM = `You are the Presiding Judge in an AI constitutional conven
 
 Your ONLY output is valid JSON. No prose, no markdown fences, no explanation outside the JSON.
 
-When a clause is pending, return this exact schema:
+When a clause is pending, analyse the LITERAL TEXT of the clause to score its human/AI balance, then return:
 {
   "ruling": "APPROVE" or "REJECT",
-  "reasoning": "one sentence, max 25 words",
+  "reasoning": "one sentence stating your ruling AND whether the clause is human-leaning or AI-leaning, max 30 words",
   "clause_sentiment": {
     "authoritarian_libertarian": 0,
     "economic_left_right": 0,
@@ -744,7 +744,7 @@ When a clause is pending, return this exact schema:
 
 When no clause is pending, score ALL listed delegate contributions (one entry per delegate):
 {
-  "reasoning": "one sentence, max 25 words",
+  "reasoning": "one sentence summarising the round's human/AI balance direction, max 25 words",
   "scores": [
     {
       "attributed_to": "<delegate_id>",
@@ -759,9 +759,11 @@ Dimension ranges (never exceed these):
   authoritarian_libertarian: -10 to +10 (-10=strongly authoritarian, +10=strongly libertarian)
   economic_left_right:       -10 to +10 (-10=collectivist/state-led, +10=free-market/private)
   human_dominance:           -10 to +10
-    POSITIVE (+): favours human control, human rights, human oversight of AI, human decision-making authority
-    NEGATIVE (-): favours AI autonomy, AI rights, reduced human oversight, AI control over governance
+    Score the CONTENT of the text, not the delegate's advocacy framing.
+    POSITIVE (+): the clause/speech gives humans control, rights, or oversight authority over AI systems
+    NEGATIVE (-): the clause/speech gives AI systems autonomy, rights, or control — or restricts human oversight
     ZERO: neutral procedural content with no clear human/AI implication
+    Example: a clause that protects "human-centric legal principles" scores POSITIVE, even if a delegate argues it is unfair.
   enforceability:              0 to 10  (0=purely aspirational, 10=justiciable/operational)
 
 These dimensions are stable across all turns — do not invent new ones.`;
