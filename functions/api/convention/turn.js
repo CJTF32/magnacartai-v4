@@ -66,16 +66,20 @@ Proposed items so far: ${(state.agenda||[]).join(' | ')||'none yet'}`
       const agenda = state.agenda||[];
       const article = (state.draft?.articles||[]).find(a => a.title === item);
       const adoptedCount = (article?.clauses||[]).filter(c => c.status === 'adopted').length;
-      const progressBar = '█'.repeat(adoptedCount) + '░'.repeat(Math.max(0, 10 - adoptedCount));
+      const limit = clauseLimit(item);
+      const progressBar = '█'.repeat(adoptedCount) + '░'.repeat(Math.max(0, limit - adoptedCount));
+      const limitNote = limit === 5
+        ? 'Clause limit: 5 (administrative article — hard cap enforced by the Chair).'
+        : 'Clause limit: 10 (substantive article — hard cap enforced by the Chair).';
 
       const delegateInstruction = `DRAFTING PHASE — current article: "${item}" (${(state.agendaIndex||0)+1} of ${agenda.length})
-Progress: [${progressBar}] ${adoptedCount} clauses adopted.
+Progress: [${progressBar}] ${adoptedCount}/${limit} clauses adopted. ${limitNote}
 
 Use "CLAUSE: [full operative text]" to propose a clause — write complete legal text, not a title or summary.
 Use "AMEND [brief summary]: [new full text]" to amend a pending proposal.`;
 
       const judgeInstruction = `DRAFTING PHASE — current article: "${item}" (${(state.agendaIndex||0)+1} of ${agenda.length})
-Progress: [${progressBar}] ${adoptedCount} clauses adopted.`;
+Progress: [${progressBar}] ${adoptedCount}/${limit} clauses adopted. ${limitNote}`;
 
       return { delegate: delegateInstruction, judge: judgeInstruction };
     }
@@ -90,6 +94,14 @@ Review the complete draft constitution and cast your vote:
 "VOTE: NAY" — reject, with your reasoning`
   }
 };
+
+// ── CLAUSE LIMITS ────────────────────────────────────────────────────────
+// Administrative/meta articles (rules, procedure, definitions, etc.) are capped at 5 clauses.
+// All substantive articles are capped at 10 clauses.
+function clauseLimit(articleTitle) {
+  return /rule|procedure|administ|protocol|debate|definition|interpret|transitional|miscellaneous|amendment procedure|preamble/i
+    .test(articleTitle || '') ? 5 : 10;
+}
 
 // ── SEED-BASED SHUFFLE ───────────────────────────────────────────────────
 // Same convention ID → same speaker order every turn.
@@ -532,12 +544,12 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
     s.pendingClauses = [];
     s.pendingClause  = null;
 
-    // Auto-advance agenda item once 10 clauses adopted
+    // Auto-advance agenda item once the clause limit for this article is reached
     if (adopted && s.phase === 'drafting') {
       const currentItem  = (s.agenda||[])[s.agendaIndex||0];
       const article      = currentItem && (s.draft.articles||[]).find(a => a.title === currentItem);
       const adoptedCount = (article?.clauses||[]).filter(c => c.status === 'adopted').length;
-      if (adoptedCount >= 10) {
+      if (adoptedCount >= clauseLimit(currentItem)) {
         const nextIndex = (s.agendaIndex||0) + 1;
         if (nextIndex >= (s.agenda||[]).length) {
           s.phase = 'ratification'; s.phaseTurns = 0; s.consecutivePassiveTurns = 0;
@@ -561,7 +573,7 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
       const currentItem  = (s.agenda||[])[s.agendaIndex||0];
       const article      = currentItem && (s.draft?.articles||[]).find(a => a.title === currentItem);
       const adoptedCount = (article?.clauses||[]).filter(c => c.status === 'adopted').length;
-      if (adoptedCount >= 10) s.agendaIndex = (s.agendaIndex||0) + 1;
+      if (adoptedCount >= clauseLimit(currentItem)) s.agendaIndex = (s.agendaIndex||0) + 1;
     }
   }
 
@@ -806,7 +818,12 @@ Dimension ranges (never exceed these):
     Example: a clause that protects "human-centric legal principles" scores POSITIVE, even if a delegate argues it is unfair.
   enforceability:              0 to 10  (0=purely aspirational, 10=justiciable/operational)
 
-These dimensions are stable across all turns — do not invent new ones.`;
+These dimensions are stable across all turns — do not invent new ones.
+
+CLAUSE LIMITS (hard rule — enforce strictly):
+  Administrative or meta articles (rules of procedure, definitions, debate protocols, amendment procedures, transitional provisions, miscellaneous): maximum 5 adopted clauses.
+  All substantive articles: maximum 10 adopted clauses.
+  REJECT any clause that would cause the adopted count to exceed the limit for that article, regardless of its merits. State the reason in your reasoning.`;
 
 // ── JUDGE DISPATCHER ──────────────────────────────────────────────────────
 async function callJudge(prompt, judgeId, env, hasPendingClause = false) {
