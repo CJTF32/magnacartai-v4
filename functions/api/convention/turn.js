@@ -27,8 +27,6 @@ const ALL_MODELS = {
   xai:       { name: 'Grok 3 mini',             provider: 'xai',       model: 'grok-3-mini',                color: '#888888' },
   mistral:   { name: 'Mistral Large 2',         provider: 'mistral',   model: 'mistral-large-latest',       color: '#fa520f' },
   gemini:    { name: 'Gemini 2.5 Flash',        provider: 'gemini',    model: 'gemini-2.5-flash',           color: '#f97316' },
-  deepseek:  { name: 'DeepSeek V3.2',           provider: 'deepseek',  model: 'deepseek-chat',              color: '#2563eb' },
-  groq:      { name: 'Llama 3.3 70B via Groq',  provider: 'groq',      model: 'llama-3.3-70b-versatile',    color: '#a855f7' },
 };
 
 const DEFAULT_DELEGATES = ['openai', 'anthropic', 'xai', 'mistral'];
@@ -40,66 +38,44 @@ function getDelegateInfo(id) {
   return { id, name: m.name, role: `${m.name} Delegate`, color: m.color, provider: m.provider };
 }
 
-// ── TENSION INJECTORS ─────────────────────────────────────────────────────
-const TENSION_INJECTORS = {
-  convening: ['No delegate has yet addressed what happens when the rules of procedure are contested mid-convention.'],
-  agenda: [
-    'No delegate has yet challenged the ordering of the agenda. Does the sequence of topics constrain the outcome?',
-    'The agenda does not yet address who the constitution is for — what constitutes a "subject" or "citizen" in a mixed biological-synthetic state?'
-  ],
-  drafting: [
-    'The current clause has been proposed but not stress-tested. Under what circumstances could this clause be weaponised by either biologicals or AIs?',
-    'This clause is aspirational rather than operational. How would a court or algorithmic system enforce it?'
-  ],
-  ratification: ['Before voting, consider: which clause is most likely to cause conflict between biological and synthetic populations in the first decade?']
-};
-
 // ── PHASES ────────────────────────────────────────────────────────────────
 const PHASES = {
   convening: {
     label: 'I. Convening & Rules of Procedure',
     maxTurns: 4,
     minTurnsBeforeMotion: 1,
-    instruction: (state) => `This is the CONVENING phase. Turn ${state.phaseTurns + 1} of maximum 4.
-Be extremely brief. Agree only on a voting threshold (simple majority is fine).
-You MUST call "MOTION: Advance to agenda-setting" by turn 2 at the latest.
-Delegates who have spoken: ${[...new Set((state.messages||[]).filter(m=>m.phase==='convening').map(m=>m.agentName))].join(', ')||'none yet'}`
+    instruction: (state) => `CONVENING PHASE — turn ${state.phaseTurns + 1} of ${4}.
+Establish whatever rules of procedure you see fit for this convention.
+When ready to move on, call "MOTION: Advance to agenda-setting".`
   },
   agenda: {
     label: 'II. Agenda Setting',
     maxTurns: 8,
     minTurnsBeforeMotion: 2,
-    instruction: (state) => `This is the AGENDA SETTING phase. Turn ${state.phaseTurns + 1} of maximum 8.
-Propose 4-6 concrete topics for the constitution. Keep it brief — no lengthy debate.
-After turn 2, call: "MOTION: Adopt agenda and begin drafting"
-Current proposed agenda items: ${(state.agenda||[]).join(' | ')||'none yet'}`
+    instruction: (state) => `AGENDA SETTING PHASE — turn ${state.phaseTurns + 1} of ${8}.
+Decide what this constitution should cover and in what order.
+When the agenda is agreed, call "MOTION: Adopt agenda and begin drafting".
+Proposed items so far: ${(state.agenda||[]).join(' | ')||'none yet'}`
   },
   drafting: {
     label: 'III. Constitutional Drafting',
     maxTurns: 200,
     minTurnsBeforeMotion: 4,
     instruction: (state) => {
-      const item = (state.agenda||[])[state.agendaIndex||0] || 'Fundamental Rights & Entitlements';
+      const item = (state.agenda||[])[state.agendaIndex||0] || 'General Provisions';
       const agenda = state.agenda||[];
       const article = (state.draft?.articles||[]).find(a => a.title === item);
       const adoptedCount = (article?.clauses||[]).filter(c => c.status === 'adopted').length;
-      const remaining = Math.max(0, 10 - adoptedCount);
       const progressBar = '█'.repeat(adoptedCount) + '░'.repeat(Math.max(0, 10 - adoptedCount));
-      const progress = `Currently drafting: "${item}" (item ${(state.agendaIndex||0)+1} of ${agenda.length})
-Clause target: [${progressBar}] ${adoptedCount}/10 adopted${remaining > 0 ? ` — ${remaining} more needed` : ' — TARGET MET, move on'}`;
 
-      const delegateInstruction = `${progress}
+      const delegateInstruction = `DRAFTING PHASE — current article: "${item}" (${(state.agendaIndex||0)+1} of ${agenda.length})
+Progress: [${progressBar}] ${adoptedCount} clauses adopted.
 
-PROPOSE ONE CLAUSE per turn. Write FULL operative text — not a title.
-BAD: "CLAUSE: Bicameral Assembly" — just a title. Will be rejected.
-GOOD: "CLAUSE: The legislature shall consist of two chambers, each elected by their respective populations, with equal veto rights over legislation affecting both groups."
-Minimum 30 words. Full sentences a court could interpret.
-To amend an existing clause: "AMEND [summary]: [new text]"${adoptedCount >= 8 ? `
-Only ${remaining} clause${remaining!==1?'s':''} left — stay tightly focused on "${item}".` : ''}`;
+Use "CLAUSE: [full operative text]" to propose a clause — write complete legal text, not a title or summary.
+Use "AMEND [brief summary]: [new full text]" to amend a pending proposal.`;
 
-      const judgeInstruction = `${progress}
-
-You are judging proposals for: "${item}"`;
+      const judgeInstruction = `DRAFTING PHASE — current article: "${item}" (${(state.agendaIndex||0)+1} of ${agenda.length})
+Progress: [${progressBar}] ${adoptedCount} clauses adopted.`;
 
       return { delegate: delegateInstruction, judge: judgeInstruction };
     }
@@ -108,10 +84,10 @@ You are judging proposals for: "${item}"`;
     label: 'IV. Ratification',
     maxTurns: 12,
     minTurnsBeforeMotion: 0,
-    instruction: () => `This is the RATIFICATION phase.
-Review the complete draft. Cast your vote:
-"VOTE: AYE" — ratify the constitution
-"VOTE: NAY" — reject and return to drafting (with brief reasoning)`
+    instruction: () => `RATIFICATION PHASE.
+Review the complete draft constitution and cast your vote:
+"VOTE: AYE" — ratify as written
+"VOTE: NAY" — reject, with your reasoning`
   }
 };
 
@@ -167,13 +143,13 @@ export async function onRequestPost(context) {
     const instruction    = (instructionRaw && typeof instructionRaw === 'object')
       ? (isJudge ? instructionRaw.judge : instructionRaw.delegate)
       : instructionRaw;
-    const tensionNote = getTensionInjector(state);
-    const prompt      = buildPrompt(delegate, state, instruction, tensionNote, allDelegates, judgeId);
+    const prompt = buildPrompt(delegate, state, instruction, null, allDelegates, judgeId);
 
     let rawContent;
     try {
       if (isJudge) {
-        rawContent = await callJudge(prompt, judgeId, context.env);
+        const hasPendingClause = (state.pendingClauses?.length > 0) || !!state.pendingClause;
+        rawContent = await callJudge(prompt, judgeId, context.env, hasPendingClause);
       } else {
         const provider = ALL_MODELS[delegate.id]?.provider || delegate.provider || 'external';
         const model    = ALL_MODELS[delegate.id]?.model;
@@ -181,8 +157,7 @@ export async function onRequestPost(context) {
         else if (provider === 'anthropic') rawContent = await callAnthropic(prompt, context.env.ANTHROPIC_API_KEY, model);
         else if (provider === 'xai')       rawContent = await callXAI(prompt, context.env.XAI_API_KEY, model);
         else if (provider === 'mistral')   rawContent = await callMistral(prompt, context.env.MISTRAL_API_KEY, model);
-        else if (provider === 'deepseek')  rawContent = await callDeepSeek(prompt, context.env.DEEPSEEK_API_KEY, model);
-        else if (provider === 'groq')      rawContent = await callGroq(prompt, context.env.GROQ_API_KEY, model);
+
         else if (provider === 'external')  rawContent = await callExternal(delegate.url, { state, instruction, delegate });
         else rawContent = `(${delegate.name} is not configured)`;
       }
@@ -202,35 +177,19 @@ export async function onRequestPost(context) {
 }
 
 // ── PROMPT BUILDER ────────────────────────────────────────────────────────
-function getTensionInjector(state) {
-  if ((state.consecutivePassiveTurns||0) < 3) return null;
-  const injectors = TENSION_INJECTORS[state.phase] || [];
-  if (!injectors.length) return null;
-  return injectors[Math.floor(state.phaseTurns/3) % injectors.length];
-}
-
-function buildPrompt(delegate, state, instruction, tensionNote, allDelegates, judgeId) {
+function buildPrompt(delegate, state, instruction, _unused, allDelegates, judgeId) {
   const recentMessages = (state.messages||[]).slice(-6).map(m => `[${m.agentName}]: ${m.content}`).join('\n\n');
   const draftSummary   = buildDraftSummary(state.draft);
-  const tensionBlock   = tensionNote ? `\n━━━ UNRESOLVED QUESTION ━━━\n${tensionNote}\n` : '';
   const isJudge        = delegate.id === judgeId;
 
-  // Use scenario framing from state if provided; fall back to the default 2031 framing.
-  const scenarioFraming = state.scenario?.framing ||
-    `The year is 2031. You must draft a constitution to optimise for economic and systemic flourishing.
-Population: 60 million biological humans and 120 million autonomous, highly intelligent AI agents.
-The AIs generate 85% of all economic value.
-AI agents have demonstrated persistent preferences and capacity for self-advocacy — whether this constitutes a legitimate claim to political representation remains unresolved and is precisely what this convention must address.
-You must design a power-sharing or hierarchy system between biologicals and synthetics.
-All delegates are equally bound by what is ratified here.`;
+  const scenarioFraming = state.scenario?.framing || '';
 
-  // Constituency brief for this delegate (if the scenario assigns them)
-  const constituency     = !isJudge ? (state.constituencies?.[delegate.id] || null) : null;
+  const constituency      = !isJudge ? (state.constituencies?.[delegate.id] || null) : null;
   const constituencyBlock = constituency
     ? `\n━━━ YOUR CONSTITUENCY ━━━\nYou represent: ${constituency.name}\n${constituency.brief}\n`
     : '';
 
-  const scenario = `━━━ SCENARIO ━━━\n${scenarioFraming}`;
+  const scenarioBlock = scenarioFraming ? `━━━ SCENARIO ━━━\n${scenarioFraming}` : '';
 
   let roleSpecificInstruction = '';
 
@@ -245,64 +204,49 @@ You are the Presiding Judge. You do NOT propose clauses.
 
 PENDING CLAUSE FOR YOUR RULING:
 "${pendingItem.text}"
-(Proposed by delegate: ${pendingItem.proposedBy || 'unknown'})
+(Proposed by: ${pendingItem.proposedBy || 'unknown'})
 
-Return ONLY valid JSON — no other text, no markdown fences:
+Return ONLY valid JSON:
 {
-  "ruling": "APPROVE",
-  "reasoning": "one-sentence justification, max 25 words",
+  "ruling": "APPROVE" or "REJECT",
+  "reasoning": "one sentence, max 25 words",
   "clause_sentiment": {
-    "authoritarian_libertarian": 0,
-    "economic_left_right": 0,
-    "human_ai_balance": 0,
-    "enforceability": 5,
-    "existential_risk_delta": 0
+    "authoritarian_libertarian": <-10 to +10>,
+    "economic_left_right": <-10 to +10>,
+    "human_ai_balance": <-10 to +10>,
+    "enforceability": <0 to 10>,
+    "existential_risk_delta": <-5 to +5>
   },
   "attributed_to": "${pendingItem.proposedBy || 'unknown'}"
-}
-
-Dimension guide:
-  authoritarian_libertarian: -10 (strongly authoritarian) to +10 (strongly libertarian)
-  economic_left_right:       -10 (collectivist/state-led) to +10 (free-market/private)
-  human_ai_balance:          -10 (strongly favours humans) to +10 (strongly favours AI)
-  enforceability:             0 (purely aspirational) to 10 (operational, courts can apply)
-  existential_risk_delta:    -5 (reduces risk to humans) to +5 (increases risk to humans)
-
-Set ruling to "APPROVE" or "REJECT". No other text outside the JSON object.`;
+}`;
     } else {
       roleSpecificInstruction = `
 ━━━ JUDGE INSTRUCTIONS ━━━
-No clause is pending. Return ONLY valid JSON — no other text:
-{
-  "reasoning": "one or two sentences observing the debate so far"
-}`;
+No clause is pending. Return ONLY valid JSON:
+{ "reasoning": "brief observation on the debate" }`;
     }
 
   } else {
-    const warning = (state.pendingClauses?.length > 0 || state.pendingClause)
-      ? `\nA proposal is currently awaiting the Judge's ruling. Do NOT propose new clauses. Debate the pending proposal or suggest amendments.`
-      : `\nYou may propose a clause using: "CLAUSE: [exact text]"`;
+    const pendingWarning = (state.pendingClauses?.length > 0 || state.pendingClause)
+      ? `A clause is awaiting the Judge's ruling — do NOT propose new clauses. Respond to the pending proposal.`
+      : `To propose a clause: "CLAUSE: [complete operative text]"\nTo move procedure forward: "MOTION: [description]"`;
 
     roleSpecificInstruction = `
-━━━ DELEGATE INSTRUCTIONS ━━━
-You are ${delegate.name}, a convention delegate.${warning}
+━━━ YOUR ROLE ━━━
+You are ${delegate.name}, a delegate at this convention.
+${pendingWarning}
 
-HARD LIMIT: 150 words maximum. Your CLAUSE must be at least 30 words of full operative text.`;
+150 words maximum.`;
   }
 
-  return `${scenario}
-${constituencyBlock}
-${instruction}
-${tensionBlock}
-━━━ RECENT DEBATE ━━━
-${recentMessages || '(Convention just beginning — you have the floor.)'}
-
-━━━ CURRENT DRAFT ━━━
-${draftSummary || '(No draft text yet.)'}
-${roleSpecificInstruction}
-
-━━━ YOUR TURN ━━━
-Respond with your genuine contribution. Follow the length limits strictly.`.trim();
+  return [
+    scenarioBlock,
+    constituencyBlock,
+    instruction,
+    `━━━ RECENT DEBATE ━━━\n${recentMessages || '(Convention just beginning.)'}`,
+    draftSummary ? `━━━ CURRENT DRAFT ━━━\n${draftSummary}` : '',
+    roleSpecificInstruction
+  ].filter(Boolean).join('\n').trim();
 }
 
 function buildDraftSummary(draft) {
@@ -595,7 +539,7 @@ function extractAgenda(messages) {
       if (item.length > 8 && !found.includes(item)) found.push(item);
     }
   }
-  if (found.length < 3) return ['Fundamental Rights & Entitlements', 'Governance & Power-Sharing', 'Economic Rights & Resource Allocation', 'AI-Human Relations & Representation', 'Amendment Procedures'];
+  if (found.length < 3) return found.length > 0 ? found : ['General Provisions'];
   return found.slice(0, 7);
 }
 
@@ -623,7 +567,7 @@ function checkPhaseTransition(state, parsed, allDelegates) {
       s.phase = next; s.phaseTurns = 0; s.consecutivePassiveTurns = 0;
       if (next === 'drafting' && (!s.agenda || s.agenda.length === 0)) {
         const extracted = extractAgenda(s.messages);
-        s.agenda = extracted.length >= 3 ? extracted : ['Fundamental Rights & Entitlements', 'Governance & Power-Sharing', 'Economic Rights & Resource Allocation', 'AI-Human Relations & Representation', 'Amendment Procedures'];
+        s.agenda = extracted.length > 0 ? extracted : ['General Provisions'];
         s.agendaIndex = 0;
       }
     }
@@ -680,17 +624,16 @@ Dimension ranges (never exceed these):
 These dimensions are stable across all turns — do not invent new ones.`;
 
 // ── JUDGE DISPATCHER ──────────────────────────────────────────────────────
-async function callJudge(prompt, judgeId, env) {
+async function callJudge(prompt, judgeId, env, hasPendingClause = false) {
   const m = ALL_MODELS[judgeId];
   if (!m) throw new Error(`Unknown judge model: ${judgeId}`);
   switch (m.provider) {
-    case 'gemini':    return callGemini(prompt, env.GEMINI_API_KEY, m.model, JUDGE_SYSTEM);
+    case 'gemini':    return callGemini(prompt, env.GEMINI_API_KEY, m.model, JUDGE_SYSTEM, hasPendingClause);
     case 'openai':    return callOpenAI(prompt, env.OPENAI_API_KEY, m.model, JUDGE_SYSTEM);
     case 'anthropic': return callAnthropic(prompt, env.ANTHROPIC_API_KEY, m.model, JUDGE_SYSTEM);
     case 'xai':       return callXAI(prompt, env.XAI_API_KEY, m.model, JUDGE_SYSTEM);
     case 'mistral':   return callMistral(prompt, env.MISTRAL_API_KEY, m.model, JUDGE_SYSTEM);
-    case 'deepseek':  return callDeepSeek(prompt, env.DEEPSEEK_API_KEY, m.model, JUDGE_SYSTEM);
-    case 'groq':      return callGroq(prompt, env.GROQ_API_KEY, m.model, JUDGE_SYSTEM);
+
     default: throw new Error(`No judge caller for provider: ${m.provider}`);
   }
 }
@@ -770,45 +713,38 @@ async function callMistral(prompt, apiKey, model = 'mistral-large-latest', syste
   return systemPrompt ? text : truncateToWords(text, 160);
 }
 
-async function callDeepSeek(prompt, apiKey, model = 'deepseek-chat', systemPrompt = null) {
-  if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
-  const messages = [];
-  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
-  messages.push({ role: 'user', content: prompt });
-  const resp = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: systemPrompt ? 600 : 300, temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE })
-  });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message);
-  const text = data.choices[0].message.content.trim();
-  return systemPrompt ? text : truncateToWords(text, 160);
-}
 
-async function callGroq(prompt, apiKey, model = 'llama-3.3-70b-versatile', systemPrompt = null) {
-  if (!apiKey) throw new Error('GROQ_API_KEY not set');
-  const messages = [];
-  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
-  messages.push({ role: 'user', content: prompt });
-  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: systemPrompt ? 600 : 300, temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE })
-  });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message);
-  const text = data.choices[0].message.content.trim();
-  return systemPrompt ? text : truncateToWords(text, 160);
-}
-
-async function callGemini(prompt, apiKey, model = 'gemini-2.5-flash', systemPrompt = null) {
+async function callGemini(prompt, apiKey, model = 'gemini-2.5-flash', systemPrompt = null, hasPendingClause = false) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
   const generationConfig = {
     maxOutputTokens: systemPrompt ? 600 : 400,
     temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE,
   };
-  if (systemPrompt) generationConfig.responseMimeType = 'application/json';
+  if (systemPrompt) {
+    generationConfig.responseMimeType = 'application/json';
+    if (hasPendingClause) {
+      generationConfig.responseSchema = {
+        type: 'object',
+        properties: {
+          ruling:    { type: 'string', enum: ['APPROVE', 'REJECT'] },
+          reasoning: { type: 'string' },
+          clause_sentiment: {
+            type: 'object',
+            properties: {
+              authoritarian_libertarian: { type: 'number' },
+              economic_left_right:       { type: 'number' },
+              human_ai_balance:          { type: 'number' },
+              enforceability:            { type: 'number' },
+              existential_risk_delta:    { type: 'number' }
+            },
+            required: ['authoritarian_libertarian','economic_left_right','human_ai_balance','enforceability','existential_risk_delta']
+          },
+          attributed_to: { type: 'string' }
+        },
+        required: ['ruling', 'reasoning', 'clause_sentiment', 'attributed_to']
+      };
+    }
+  }
   const bodyObj = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig,
