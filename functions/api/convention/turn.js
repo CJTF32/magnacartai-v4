@@ -801,13 +801,14 @@ async function callGroq(prompt, apiKey, model = 'llama-3.3-70b-versatile', syste
 
 async function callGemini(prompt, apiKey, model = 'gemini-2.5-flash', systemPrompt = null) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
+  const generationConfig = {
+    maxOutputTokens: systemPrompt ? 600 : 400,
+    temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE,
+  };
+  if (systemPrompt) generationConfig.responseMimeType = 'application/json';
   const bodyObj = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      maxOutputTokens: systemPrompt ? 600 : 400,
-      temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE,
-      thinkingConfig: { thinkingBudget: 0 } // disable chain-of-thought for structured output
-    }
+    generationConfig,
   };
   if (systemPrompt) bodyObj.systemInstruction = { parts: [{ text: systemPrompt }] };
   const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
