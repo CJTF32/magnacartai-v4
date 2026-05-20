@@ -950,8 +950,12 @@ function updateRiskPanel() {
   if (flagEl) {
     const last = riskHistory.length ? riskHistory[riskHistory.length - 1] : null;
     if (last && Math.abs(last.delta) >= 6) {
-      const dir = last.delta > 0 ? 'Human-leaning' : 'AI-leaning';
-      flagEl.textContent = `${last.delta > 0 ? '👤' : '🤖'} ${dir}: ${last.reason}`;
+      const dir  = last.delta > 0 ? 'Human-leaning' : 'AI-leaning';
+      const sign = last.delta > 0 ? '+' : '';
+      const src  = last.source === 'clause' ? 'clause' : 'speech';
+      const attrDelegate = getDelegateMeta().find(d => d.id === last.attributed_to);
+      const attrName = attrDelegate ? attrDelegate.name : (last.attributed_to || '');
+      flagEl.textContent = `${last.delta > 0 ? '👤' : '🤖'} ${dir} (${sign}${last.delta.toFixed(1)}, ${src}${attrName ? ', ' + attrName : ''}): ${last.reason}`;
       flagEl.classList.remove('hidden');
     } else {
       flagEl.classList.add('hidden');
