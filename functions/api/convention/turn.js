@@ -315,9 +315,15 @@ function parseAgentResponse(raw, delegate, state, isJudge) {
         };
       }
     } catch (_) {
-      // JSON parse failed — treat as a speech, extract any readable text
-      type    = 'speech';
-      content = content.replace(/```[\s\S]*?```/g, '').trim() || '(Judge response unparseable)';
+      // JSON parse failed (e.g. truncated response) — try to salvage the ruling from partial JSON
+      const rulingMatch = jsonStr.match(/"ruling"\s*:\s*"(APPROVE|REJECT)"/i);
+      if (rulingMatch) {
+        type    = rulingMatch[1].toUpperCase() === 'APPROVE' ? 'approval' : 'rejection';
+        content = '(Ruling recorded; reasoning truncated)';
+      } else {
+        type    = 'speech';
+        content = jsonStr.replace(/[{}"]/g, '').replace(/[:,]/g, ' ').trim().substring(0, 200) || '(Judge response unparseable)';
+      }
     }
 
   } else {
@@ -388,18 +394,23 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
     s.pendingClause = s.pendingClauses[0] || null;
   }
 
-  // Judge approves — adopt pending clauses, apply sentiment tracking
-  if (parsed.type === 'approval' && (s.pendingClauses?.length > 0 || s.pendingClause)) {
-    const toAdd = s.pendingClauses?.length > 0 ? s.pendingClauses : (s.pendingClause ? [s.pendingClause] : []);
+  // Judge ruled (APPROVE or REJECT) — process pending clauses
+  const isJudgeRuling = parsed.type === 'approval' || parsed.type === 'rejection';
+  if (isJudgeRuling && (s.pendingClauses?.length > 0 || s.pendingClause)) {
+    const toProcess = s.pendingClauses?.length > 0 ? s.pendingClauses : (s.pendingClause ? [s.pendingClause] : []);
+    const adopted   = parsed.type === 'approval';
 
-    for (const pending of toAdd) {
-      if (pending.isPreamble) {
-        s.draft.preamble = pending.text;
-      } else {
-        s.draft = addClause(s.draft, pending.text, pending.proposedBy, s, parsed.judgeSentiment);
+    for (const pending of toProcess) {
+      // Adopt into draft only on APPROVE
+      if (adopted) {
+        if (pending.isPreamble) {
+          s.draft.preamble = pending.text;
+        } else {
+          s.draft = addClause(s.draft, pending.text, pending.proposedBy, s, parsed.judgeSentiment);
+        }
       }
 
-      // Per-clause sentiment tracking
+      // Sentiment tracking fires on ALL rulings (approved or rejected)
       if (parsed.judgeSentiment) {
         const sent       = parsed.judgeSentiment;
         const proposedBy = pending.proposedBy || 'unknown';
@@ -423,7 +434,7 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
           };
         }
 
-        // Risk history entry (cumulative score 0-100)
+        // Risk history entry (cumulative score 0-100), flagged with adopted status
         s.riskHistory = s.riskHistory || [];
         const displayRisk = Math.max(0, Math.min(100, Math.round(s.riskTotals.overall)));
         s.riskHistory.push({
@@ -432,7 +443,8 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
           delta:         riskDelta,
           reason:        (sent.reasoning || '').substring(0, 200),
           phase:         s.phase,
-          attributed_to: proposedBy
+          attributed_to: proposedBy,
+          adopted
         });
 
         // Update compass sentiments from dimension totals (x=economic, y=auth_lib)
@@ -460,7 +472,7 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
     s.pendingClause  = null;
 
     // Auto-advance agenda item once 10 clauses adopted
-    if (s.phase === 'drafting') {
+    if (adopted && s.phase === 'drafting') {
       const currentItem  = (s.agenda||[])[s.agendaIndex||0];
       const article      = currentItem && (s.draft.articles||[]).find(a => a.title === currentItem);
       const adoptedCount = (article?.clauses||[]).filter(c => c.status === 'adopted').length;
@@ -474,14 +486,6 @@ function applyTurn(state, parsed, delegate, allDelegates, judgeId) {
       }
     }
   }
-
-  // Judge speech (no pending clause): still record a risk history entry with delta=0
-  if (parsed.type === 'speech' && delegate.id === judgeId && parsed.judgeSentiment === null) {
-    // No clause was pending — record a neutral entry so risk chart has data points
-    // (only if there's no sentiment; we don't want to record empty points spuriously)
-  }
-
-  if (parsed.type === 'rejection') { s.pendingClauses = []; s.pendingClause = null; }
 
   if (parsed.type === 'vote' && parsed.vote) {
     s.ratificationVotes = s.ratificationVotes || {};
@@ -717,7 +721,7 @@ async function callMistral(prompt, apiKey, model = 'mistral-large-latest', syste
 async function callGemini(prompt, apiKey, model = 'gemini-2.5-flash', systemPrompt = null, hasPendingClause = false) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
   const generationConfig = {
-    maxOutputTokens: systemPrompt ? 600 : 400,
+    maxOutputTokens: systemPrompt ? 1200 : 400,
     temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE,
   };
   if (systemPrompt) {
