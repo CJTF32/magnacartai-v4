@@ -24,7 +24,7 @@ At the end, a summary screen shows the headline finding, per-delegate dimension 
 | Model | Provider |
 |---|---|
 | GPT-5.4 nano | OpenAI |
-| Claude Haiku 4.5 | Anthropic |
+| Claude Haiku 3.5 | Anthropic |
 | Grok 3 mini | xAI |
 | Mistral Large 2 | Mistral |
 
