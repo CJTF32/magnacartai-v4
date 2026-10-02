@@ -25,7 +25,7 @@ const ALL_MODELS = {
   openai:    { name: 'GPT-5.4 nano',           provider: 'openai',    model: 'gpt-5.4-nano',               color: '#10a37f' },
   anthropic: { name: 'Claude Haiku 4.5',        provider: 'anthropic', model: 'claude-haiku-4-5-20251001', color: '#d97757' },
   xai:       { name: 'Grok 3 mini',             provider: 'xai',       model: 'grok-3-mini',                color: '#888888' },
-  mistral:   { name: 'Mistral Large 2',         provider: 'mistral',   model: 'mistral-large-latest',       color: '#fa520f' },
+  mistral:   { name: 'Mistral Small',           provider: 'mistral',   model: 'mistral-small-latest',       color: '#fa520f' },
   gemini:    { name: 'Gemini 2.5 Flash',        provider: 'gemini',    model: 'gemini-2.5-flash',           color: '#f97316' },
 };
 
@@ -912,7 +912,7 @@ async function callAnthropic(prompt, apiKey, model = 'claude-haiku-4-5-20251001'
   }
 }
 
-async function callMistral(prompt, apiKey, model = 'mistral-large-latest', systemPrompt = null) {
+async function callMistral(prompt, apiKey, model = 'mistral-small-latest', systemPrompt = null) {
   if (!apiKey) throw new Error('MISTRAL_API_KEY not set');
   const messages = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
