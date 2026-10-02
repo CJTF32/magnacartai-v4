@@ -88,7 +88,7 @@
         <span class="text-zinc-600 text-xs">— Presiding Judge (private scoring)</span>
       </div>
       <div id="mistral-judge-warning" class="hidden mt-2 text-[11px] text-amber-400 bg-amber-950/30 border border-amber-700/40 rounded-lg px-3 py-2 leading-snug">
-        Mistral Large 2 may time out as judge — rate limits are tight and judge turns happen every round. Use Gemini for stability.
+        Mistral Small may time out as judge — rate limits are tight and judge turns happen every round. Use Gemini for stability.
       </div>
     </div>
   </div>
@@ -429,7 +429,7 @@ const ALL_MODEL_META = {
   openai:    { name: 'GPT-5.4 nano',           color: '#10a37f' },
   anthropic: { name: 'Claude Haiku 4.5',        color: '#d97757' },
   xai:       { name: 'Grok 3 mini',             color: '#888888' },
-  mistral:   { name: 'Mistral Large 2',         color: '#fa520f' },
+  mistral:   { name: 'Mistral small',         color: '#fa520f' },
   gemini:    { name: 'Gemini 2.5 Flash',        color: '#f97316' },
 
 };
@@ -438,7 +438,7 @@ const MODEL_OPTIONS = [
   { id: 'openai',    label: 'GPT-5.4 nano' },
   { id: 'anthropic', label: 'Claude Haiku 4.5' },
   { id: 'xai',       label: 'Grok 3 mini' },
-  { id: 'mistral',   label: 'Mistral Large 2' },
+  { id: 'mistral',   label: 'Mistral small' },
   { id: 'gemini',    label: 'Gemini 2.5 Flash' },
 
 ];
