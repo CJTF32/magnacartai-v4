@@ -26,13 +26,13 @@ At the end, a summary screen shows the headline finding, per-delegate dimension 
 | GPT-5.4 nano | OpenAI |
 | Claude Haiku 3.5 | Anthropic |
 | Grok 3 mini | xAI |
-| Mistral Large 2 | Mistral |
+| Mistral Small | Mistral |
 
 **Default judge:** Gemini 2.5 Flash (Google)
 
 Any of the seven available models can be assigned to any slot or the judge role via the roster editor on the landing page. Selections persist in localStorage.
 
-**All five options:** GPT-5.4 nano, Claude Haiku 4.5, Grok 3 mini, Mistral Large 2, Gemini 2.5 Flash
+**All five options:** GPT-5.4 nano, Claude Haiku 4.5, Grok 3 mini, Mistral Small, Gemini 2.5 Flash
 
 ## Scenarios
 
