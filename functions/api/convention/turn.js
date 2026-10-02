@@ -918,19 +918,47 @@ async function callMistral(prompt, apiKey, model = 'mistral-small-latest', syste
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
   messages.push({ role: 'user', content: prompt });
   const maxTokens = systemPrompt ? 600 : 300;
-  const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE })
-  });
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  if (data.message && !data.choices) throw new Error(data.message);
-  if (!data.choices?.[0]) throw new Error(`Mistral returned no choices: ${JSON.stringify(data).substring(0, 200)}`);
-  const text = data.choices[0].message.content.trim();
-  return systemPrompt ? text : truncateToWords(text, 160);
-}
 
+  const maxAttempts = 4;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model, messages, max_tokens: maxTokens,
+        temperature: systemPrompt ? JUDGE_TEMPERATURE : DELEGATE_TEMPERATURE
+      })
+    });
+
+    const raw = await resp.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { throw new Error(`Mistral HTTP ${resp.status}: ${raw.substring(0, 150)}`); }
+    const errMsg = data.message || data.error?.message || raw.substring(0, 150);
+
+    if (resp.status === 429 || resp.status >= 500) {
+      if (attempt < maxAttempts) {
+        const retryAfter = Number(resp.headers.get('retry-after'));
+        const waitMs = retryAfter > 0 ? Math.min(retryAfter * 1000, 5000) : 1500 * attempt;
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
+      throw new Error(`Mistral HTTP ${resp.status}: ${errMsg}`);
+    }
+    if (!resp.ok) throw new Error(`Mistral HTTP ${resp.status}: ${errMsg}`);
+
+    const choice = data.choices?.[0];
+    let content = choice?.message?.content;
+    if (Array.isArray(content)) {
+      content = content.filter(c => c.type === 'text').map(c => c.text || '').join('');
+    }
+    if (typeof content !== 'string' || !content.trim()) {
+      throw new Error(`Mistral returned empty content (finish_reason: ${choice?.finish_reason})`);
+    }
+    const text = content.trim();
+    return systemPrompt ? text : truncateToWords(text, 160);
+  }
+}
 
 async function callGemini(prompt, apiKey, model = 'gemini-2.5-flash', systemPrompt = null, schema = null) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
